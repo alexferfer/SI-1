@@ -23,8 +23,21 @@ def is_authorized(uid: str) -> bool:
 def get_file_path(uid, filename):
     return os.path.join(STORAGE_DIR, uid, filename)
 
-def get_meta_path(uid, filename):
-    return os.path.join(STORAGE_DIR, uid, f"{filename}.meta")
+def get_public_path(uid):
+    return os.path.join(STORAGE_DIR, uid, "public.json")
+
+def load_public(uid):
+    path = get_public_path(uid)
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return {}
+    with open(path, "r") as f:
+        return json.load(f)
+
+def save_public(uid, data):
+    user_dir = os.path.join(STORAGE_DIR, uid)
+    os.makedirs(user_dir, exist_ok=True)
+    with open(get_public_path(uid), "w") as f:
+        json.dump(data, f)
 
 @app.put('/file/<uid>/<filename>')
 async def create_or_update_file(uid, filename):
@@ -42,8 +55,9 @@ async def create_or_update_file(uid, filename):
         f.write(data['content'])
         
     visibility = data.get('public', False)
-    with open(get_meta_path(uid, filename), "w") as f:
-        f.write(str(visibility))
+    public = load_public(uid)
+    public[filename] = {"public": visibility}
+    save_public(uid, public)
 
     return jsonify({"message": "file saved successfully"}), 201
 
@@ -56,21 +70,19 @@ async def list_files(uid):
     if not os.path.exists(user_dir):
         return jsonify({"files": []}), 200
         
-    files = [f for f in os.listdir(user_dir) if not f.endswith('.meta')]
+    public = load_public(uid)
+    files = list(public.keys())
     return jsonify({"files": files}), 200
 
 @app.get('/file/<uid>/<filename>')
 async def get_file(uid, filename):
     file_path = get_file_path(uid, filename)
-    meta_path = get_meta_path(uid, filename)
     
     if not os.path.exists(file_path):
         return jsonify({"error": "file not found"}), 404
 
-    is_public = False
-    if os.path.exists(meta_path):
-        with open(meta_path, "r") as f:
-            is_public = f.read().strip() == "True"
+    public = load_public(uid)
+    is_public = public.get(filename, {}).get("public", False)
 
     if not is_public and not is_authorized(uid):
         return jsonify({"error": "unauthorized. file is private"}), 401
@@ -86,14 +98,16 @@ async def delete_file(uid, filename):
         return jsonify({"error": "unauthorized"}), 401
 
     file_path = get_file_path(uid, filename)
-    meta_path = get_meta_path(uid, filename)
 
     if not os.path.exists(file_path):
         return jsonify({"error": "file not found"}), 404
 
     os.remove(file_path)
-    if os.path.exists(meta_path):
-        os.remove(meta_path)
+    
+    public = load_public(uid)
+    if filename in public:
+        del public[filename]
+        save_public(uid, public)
 
     return jsonify({"message": "file deleted successfully"}), 200
 
@@ -110,8 +124,9 @@ async def change_visibility(uid, filename):
         return jsonify({"error": "public status missing"}), 400
 
     visibility = bool(data['public'])
-    with open(get_meta_path(uid, filename), "w") as f:
-        f.write(str(visibility))
+    public = load_public(uid)
+    public[filename] = {"public": visibility}
+    save_public(uid, public)
 
     return jsonify({"message": "visibility updated"}), 200
 

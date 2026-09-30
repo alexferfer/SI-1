@@ -75,7 +75,7 @@ async def change_password():
         return jsonify({"error": "password missing"}), 400
 
     users_db[target]['pwd'] = hash_password(pwd_data['password'])
-    return jsonify({"message": "password changed successfuly"}), 200
+    return jsonify({"message": "password changed successfully"}), 200
 
 if __name__ == '__main__':
     app.run(host = '127.0.0.1', port = 5050)
