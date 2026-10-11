@@ -7,7 +7,8 @@ from sqlalchemy import text
 
 app = Quart(__name__)
 
-DATABASE_URL = "postgresql+asyncpg://alumnodb:1234@localhost:5432/si1"
+import os
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://alumnodb:1234@localhost:5432/si1")
 
 DB_CONFIG = {
     "table_users": "usuarios",
