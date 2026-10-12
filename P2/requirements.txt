@@ -1,0 +1,4 @@
+quart
+requests
+sqlalchemy[asyncio]
+asyncpg

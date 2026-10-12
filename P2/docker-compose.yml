@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: si1_db
+    environment:
+      POSTGRES_DB: si1
+      POSTGRES_USER: alumnodb
+      POSTGRES_PASSWORD: "1234"
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alumnodb -d si1"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  user_api:
+    build: .
+    container_name: si1_user_api
+    ports:
+      - "5050:5050"
+    command: python -u user.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql+asyncpg://alumnodb:1234@db:5432/si1
+    volumes:
+      - ./:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  main_api:
+    build: .
+    container_name: si1_main_api
+    ports:
+      - "5051:5051"
+    command: python -u api.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql+asyncpg://alumnodb:1234@db:5432/si1
+    volumes:
+      - ./:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
